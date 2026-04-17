@@ -17,6 +17,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: str
+    role: str = "patient"
     age: int = None
     gender: str = None
     blood_group: str = None
@@ -27,6 +28,8 @@ class UserCreate(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+    role: str
+
 
 @router.post("/register", response_model=Token)
 def register(user: UserCreate, db: Session = Depends(get_db)):
@@ -39,6 +42,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
         email=user.email,
         hashed_password=hashed_password,
         name=user.name,
+        role=user.role,
         age=user.age,
         gender=user.gender,
         blood_group=user.blood_group,
@@ -50,11 +54,39 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     
+    # If hospital, provision their profile
+    if user.role == "hospital":
+        hospital_profile = models.HospitalProfile(
+            user_id=new_user.id,
+            specializations=[], # To be updated later
+            lat="0",
+            lng="0",
+            address="Not specified"
+        )
+        db.add(hospital_profile)
+        db.commit()
+
     access_token = auth.create_access_token(data={"sub": new_user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "role": new_user.role}
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    # Hardcoded admin bypass
+    if form_data.username == "admin@gmail.com" and form_data.password == "admin@123":
+        admin_user = db.query(models.User).filter(models.User.email == "admin@gmail.com").first()
+        if not admin_user:
+            admin_user = models.User(
+                email="admin@gmail.com",
+                hashed_password=auth.get_password_hash("admin@123"),
+                name="System Admin",
+                role="admin"
+            )
+            db.add(admin_user)
+            db.commit()
+        
+        access_token = auth.create_access_token(data={"sub": "admin@gmail.com"})
+        return {"access_token": access_token, "token_type": "bearer", "role": "admin"}
+
     user = db.query(models.User).filter(models.User.email == form_data.username).first()
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -64,7 +96,8 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         )
     
     access_token = auth.create_access_token(data={"sub": user.email})
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer", "role": user.role}
+
 
 class OAuthRequest(BaseModel):
     token: str

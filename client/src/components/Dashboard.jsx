@@ -30,13 +30,9 @@ import {
   Bar
 } from 'recharts';
 
-import { useUser, useAuth } from '@clerk/clerk-react';
-
 const API_BASE = "http://localhost:8000";
 
-const Dashboard = () => {
-  const { user } = useUser();
-  const { getToken } = useAuth();
+const Dashboard = ({ user }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [records, setRecords] = useState([]);
   const [summary, setSummary] = useState(null);
@@ -54,8 +50,7 @@ const Dashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = await getToken();
-      const authHeader = { Authorization: `Bearer ${token}` };
+      const authHeader = { Authorization: `Bearer ${user.access_token}` };
       const [recordsRes, summaryRes] = await Promise.all([
         axios.get(`${API_BASE}/prescriptions/`, { headers: authHeader }),
         axios.get(`${API_BASE}/summaries/generate`, { headers: authHeader })
@@ -87,11 +82,10 @@ const Dashboard = () => {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const token = await getToken();
       await axios.post(`${API_BASE}/prescriptions/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${user.access_token}`
         }
       });
       await fetchData();
@@ -124,7 +118,7 @@ const Dashboard = () => {
       {/* Header */}
       <div className="d-flex justify-content-between align-items-end mb-5">
         <div>
-          <h1 className="display-6 font-outfit text-navy mb-1">Health Intel, {user?.firstName || 'User'}</h1>
+          <h1 className="display-6 font-outfit text-navy mb-1">Health Intel, {user.name || 'User'}</h1>
           <p className="text-secondary mb-0">R-Analytics & Gemini Intelligence Synchronized.</p>
         </div>
         <button onClick={() => setActiveTab('scanner')} className="btn btn-premium d-flex align-items-center gap-2">

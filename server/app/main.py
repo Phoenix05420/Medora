@@ -9,7 +9,7 @@ load_dotenv(dotenv_path=env_path)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-from .routes import auth, prescription, summary, reminders, share
+from .routes import auth, prescription, summary, reminders, share, admin, hospital, emergency
 
 app = FastAPI(title="Smart Medical Record System API")
 
@@ -27,6 +27,9 @@ app.include_router(prescription.router)
 app.include_router(summary.router)
 app.include_router(reminders.router)
 app.include_router(share.router)
+app.include_router(admin.router)
+app.include_router(hospital.router)
+app.include_router(emergency.router)
 
 @app.get("/")
 def read_root():

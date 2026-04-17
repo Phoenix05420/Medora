@@ -7,6 +7,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    role = Column(String, default="patient") # patient, hospital, admin
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     name = Column(String)
@@ -50,3 +51,38 @@ class Reminder(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="reminders")
+
+class HospitalProfile(Base):
+    __tablename__ = "hospital_profiles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    specializations = Column(JSON) # e.g., ["cardio", "multispecialist"]
+    lat = Column(String)
+    lng = Column(String)
+    address = Column(String)
+
+    user = relationship("User")
+
+class EmergencyAlert(Base):
+    __tablename__ = "emergency_alerts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("users.id"))
+    hospital_id = Column(Integer, ForeignKey("users.id"))
+    category = Column(String) # road accident, heart pain, etc.
+    lat = Column(String)
+    lng = Column(String)
+    status = Column(String, default="pending") # pending, accepted, resolved
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Appointment(Base):
+    __tablename__ = "appointments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    patient_id = Column(Integer, ForeignKey("users.id"))
+    hospital_id = Column(Integer, ForeignKey("users.id"))
+    appointment_date = Column(DateTime(timezone=True))
+    status = Column(String, default="scheduled")
+    notes = Column(String)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
