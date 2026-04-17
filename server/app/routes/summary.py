@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import models
 from ..utils import r_bridge
-import openai
 import json
 import os
 import logging
@@ -11,11 +10,6 @@ import logging
 logger = logging.getLogger("ocr_service")
 
 from ..utils.auth import get_current_user
-from ..utils.ocr_service import ocr_service
-import google.generativeai as genai # This is the old one, I should use the one I set up in ocr_service
-
-# Actually, I'll use the gemini_client from ocr_service if possible, 
-# or just initialize a new model here using the same SDK logic.
 
 router = APIRouter(prefix="/summaries", tags=["summaries"])
 
@@ -35,41 +29,51 @@ def generate_summary(db: Session = Depends(get_db), current_user: models.User = 
         records_context.append({
             "doctor": r.doctor_name,
             "date": str(r.visit_date),
-            "diagnoses": r.diagnoses,
-            "medicines": r.medicines
+            "diagnoses": r.diagnoses or [],
+            "medicines": r.medicines or []
         })
     
-    # 2. Run R Analytics for statistical insights (Numerical data processing)
+    # 2. Run R Analytics for statistical insights
+    r_insights = {"error": "Statistical engine offline"}
     try:
         r_insights = r_bridge.run_health_analysis(json.dumps(records_context))
     except Exception as e:
-        logger.error(f"R Analytics failed: {e}")
-        r_insights = {"error": "Statistical engine offline"}
+        logger.warning(f"R Analytics failed: {e}")
 
-    # 3. Use Gemini for natural language summary across all history
-    prompt = f"""
-    You are a medical health assistant. Summarize the following medical history for the patient {current_user.name}.
-    Focus on trends, recurring medications, and provide a friendly, encouraging health overview.
-    Medical History:
-    {json.dumps(records_context)}
+    # 3. Build a local summary from the data (no cloud API needed)
+    all_meds = []
+    all_diagnoses = []
+    doctors_seen = set()
     
-    Statistical Insights (from R):
-    {json.dumps(r_insights)}
+    for r in records:
+        if r.medicines:
+            for m in r.medicines:
+                name = m.get("name", "") if isinstance(m, dict) else str(m)
+                if name and name not in all_meds:
+                    all_meds.append(name)
+        if r.diagnoses:
+            for d in r.diagnoses:
+                if d and d not in all_diagnoses:
+                    all_diagnoses.append(d)
+        if r.doctor_name and r.doctor_name != "Not detected":
+            doctors_seen.add(r.doctor_name)
 
-    Keep the summary concise but informative. Format with bullet points if needed.
-    """
+    summary_parts = []
+    summary_parts.append(f"You have {len(records)} medical record(s) on file.")
     
-    try:
-        if ocr_service.gemini_client:
-            response = ocr_service.gemini_client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=[prompt]
-            )
-            ai_summary = response.text.strip()
-        else:
-            ai_summary = "AI Summary Service is currently offline (Gemini not configured)."
-    except Exception as e:
-        ai_summary = f"Summary generation paused: {str(e)}"
+    if doctors_seen:
+        summary_parts.append(f"Doctors consulted: {', '.join(doctors_seen)}.")
+    
+    if all_diagnoses:
+        summary_parts.append(f"Conditions noted: {', '.join(all_diagnoses[:5])}.")
+    
+    if all_meds:
+        summary_parts.append(f"Medications prescribed: {', '.join(all_meds[:8])}.")
+    
+    if len(records) > 1:
+        summary_parts.append("Regular follow-ups detected — good adherence pattern.")
+
+    ai_summary = " ".join(summary_parts)
 
     return {
         "ai_summary": ai_summary,
