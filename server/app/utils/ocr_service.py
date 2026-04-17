@@ -59,43 +59,24 @@ class OcrService:
     """Triple-engine hybrid OCR with advanced preprocessing and medical parsing."""
 
     def __init__(self, tesseract_path=None):
-        # ── PaddleOCR ──
+        # ── Local Engines (Lazy Loading) ──
         self.paddle = None
-        if _paddle_available:
-            try:
-                self.paddle = PaddleOCR(
-                    use_textline_orientation=False,
-                    enable_mkldnn=False,
-                    lang='en'
-                )
-                logger.info("PaddleOCR v5 initialized (MKLDNN disabled for stability)")
-            except Exception as e:
-                logger.error(f"PaddleOCR init failed: {e}")
-
-        # ── EasyOCR ──
         self.easy_reader = None
-        if _easyocr_available:
-            try:
-                self.easy_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
-                logger.info("EasyOCR initialized (CPU mode)")
-            except Exception as e:
-                logger.error(f"EasyOCR init failed: {e}")
-
-        # ── Tesseract ──
-        self.has_tesseract = False
+        self.tesseract_path = tesseract_path
+        self._tesseract_verified = False
+        
+        # ── Tesseract Configuration ──
         if _tesseract_available:
             if tesseract_path:
                 pytesseract.pytesseract.tesseract_cmd = tesseract_path
-            # Verify tesseract binary is actually installed
             try:
                 pytesseract.get_tesseract_version()
-                self.has_tesseract = True
+                self._tesseract_verified = True
                 logger.info(f"Tesseract configured (path: {tesseract_path or 'system default'})")
             except Exception:
-                logger.warning("pytesseract installed but Tesseract binary not found — skipping engine")
+                logger.warning("pytesseract installed but Tesseract binary not found")
 
-        active = sum([self.paddle is not None, self.easy_reader is not None, self.has_tesseract])
-        logger.info(f"Local OCR ready — {active}/3 engines active")
+        logger.info("OCR Service initialized (Lazy Loading mode)")
 
         # ── Gemini (Cloud OCR) ──
         self.gemini_client = None
@@ -290,26 +271,36 @@ class OcrService:
         return results
 
     def _run_paddle(self, image_path):
-        """PaddleOCR engine — returns list of (text, confidence) tuples."""
-        if not self.paddle:
+        """Lazy-loaded PaddleOCR engine."""
+        if not _paddle_available:
             return []
         try:
-            res = self.paddle.predict(image_path)
+            if self.paddle is None:
+                logger.info("⚡ Lazy-loading PaddleOCR (MKLDNN off)...")
+                self.paddle = PaddleOCR(use_textline_orientation=False, enable_mkldnn=False, lang='en')
+                
+            res = self.paddle.ocr(image_path, cls=True)
             if res and len(res) > 0:
-                texts = res[0].get('rec_texts', [])
-                scores = res[0].get('rec_scores', [])
-                lines = list(zip(texts, scores)) if scores else [(t, 0.9) for t in texts]
-                logger.info(f"PaddleOCR: {len(lines)} lines, avg conf {np.mean(scores):.2f}" if scores else f"PaddleOCR: {len(lines)} lines")
+                # PaddleOCR latest usually returns a list of results, each is a list of [box, (text, score)]
+                lines = []
+                for line in res[0]:
+                    text, score = line[1]
+                    lines.append((text, score))
+                logger.info(f"PaddleOCR: {len(lines)} lines")
                 return lines
         except Exception as e:
             logger.error(f"PaddleOCR engine error: {e}")
         return []
 
     def _run_easyocr(self, image_path):
-        """EasyOCR engine — returns list of (text, confidence) tuples."""
-        if not self.easy_reader:
+        """Lazy-loaded EasyOCR engine."""
+        if not _easyocr_available:
             return []
         try:
+            if self.easy_reader is None:
+                logger.info("⚡ Lazy-loading EasyOCR (CPU mode)...")
+                self.easy_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+            
             results = self.easy_reader.readtext(image_path)
             lines = [(text, conf) for (_, text, conf) in results]
             logger.info(f"EasyOCR: {len(lines)} lines")
@@ -332,6 +323,17 @@ class OcrService:
         except Exception as e:
             logger.error(f"Tesseract engine error: {e}")
         return []
+
+    def _extract_json(self, text):
+        """Robustly extract JSON block from potentially 'chatty' AI responses."""
+        try:
+            # Look for the first { and the last }
+            match = re.search(r'(\{.*\})', text, re.DOTALL)
+            if match:
+                return match.group(1)
+            return text
+        except Exception:
+            return text
 
     def _run_gemini(self, image_path):
         """Gemini engine with robust retries and model rotation fallback."""
@@ -396,11 +398,10 @@ class OcrService:
             )
             text_response = response.text.strip()
             
-            # Clean up potential markdown formatting
-            if text_response.startswith("```"):
-                text_response = re.sub(r"```json\s?|\s?```", "", text_response)
+            # Clean up potential markdown formatting and preamble
+            cleaned_text = self._extract_json(text_response)
             
-            result = json.loads(text_response)
+            result = json.loads(cleaned_text)
             
             # Post-process with Fuzzy Matching for extra reliability
             if "medicines" in result and self.medicine_list:

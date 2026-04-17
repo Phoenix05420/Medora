@@ -76,7 +76,16 @@ async def upload_prescription(
         }
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"OCR processing or saving failed: {str(e)}")
+        logger.error(f"OCR Failure: {str(e)}", exc_info=True)
+        
+        # User-friendly error mapping
+        error_detail = str(e)
+        if "429" in error_detail or "RESOURCE_EXHAUSTED" in error_detail:
+            error_detail = "API quota exceeded. Using local fallback (accuracy may vary). Please try again later."
+        elif "JSON" in error_detail:
+            error_detail = "Failed to parse clinical data. The image may be too blurry or contains non-medical text."
+        
+        raise HTTPException(status_code=500, detail=f"OCR processing failed: {error_detail}")
     finally:
         # Clean up
         if os.path.exists(temp_path):
