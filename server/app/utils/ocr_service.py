@@ -115,8 +115,8 @@ class OcrService:
             blockSize=11, C=2
         )
         binary = self._deskew(binary)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        cleaned = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
+        # removed morphologyEx as it erodes thin handwriting ink strokes.
+        cleaned = binary
 
         return img, cleaned
 
@@ -238,8 +238,26 @@ class OcrService:
             if res and len(res) > 0 and res[0]:
                 lines = []
                 for line in res[0]:
-                    text, score = line[1]
-                    lines.append((text, score))
+                    try:
+                        # Depending on the model, it might return [box, (text, score)] or just [text, score]
+                        if len(line) >= 2 and isinstance(line[1], (tuple, list)):
+                            text, score = line[1][0], line[1][1]
+                        elif len(line) == 2 and isinstance(line[0], str):
+                            text, score = line[0], line[1]
+                        elif isinstance(line, (tuple, list)) and len(line) > 0:
+                            if isinstance(line[-1], tuple) and len(line[-1]) == 2:
+                                text, score = line[-1]
+                            else:
+                                text = str(line[0])
+                                score = 0.8
+                        else:
+                            continue
+                            
+                        # Only keep reasonable lines
+                        if text and len(str(text).strip()) > 1:
+                            lines.append((str(text).strip(), float(score)))
+                    except Exception:
+                        pass
                 logger.info(f"PaddleOCR: {len(lines)} lines")
                 return lines
         except Exception as e:
