@@ -311,7 +311,7 @@ class OcrService:
 
     def _run_tesseract(self, preprocessed_img):
         """Tesseract engine — returns list of (text, confidence) tuples."""
-        if not self.has_tesseract:
+        if not self._tesseract_verified:
             return []
         try:
             # Use OEM 3 (default) + PSM 6 (block of text) for best results

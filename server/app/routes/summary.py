@@ -6,6 +6,9 @@ from ..utils import r_bridge
 import openai
 import json
 import os
+import logging
+
+logger = logging.getLogger("ocr_service")
 
 from ..utils.auth import get_current_user
 from ..utils.ocr_service import ocr_service

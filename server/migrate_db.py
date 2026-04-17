@@ -15,19 +15,25 @@ if not DATABASE_URL:
 engine = create_engine(DATABASE_URL)
 
 with engine.connect() as conn:
+    print("Adding missing columns to medical_records...")
     try:
-        print("Ensuring role column exists in users table...")
-        conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'patient';"))
-        conn.commit()
-        print("Column added successfully!")
+        conn.execute(text("ALTER TABLE medical_records ADD COLUMN diagnoses JSON;"))
+        print("Added 'diagnoses'")
     except Exception as e:
-        print(f"Error (maybe already exists): {e}")
+        print(f"Skipped diagnoses: {e}")
 
     try:
-        print("Updating existing users to have 'patient' role...")
-        conn.execute(text("UPDATE users SET role = 'patient' WHERE role IS NULL;"))
-        conn.commit()
+        conn.execute(text("ALTER TABLE medical_records ADD COLUMN raw_text VARCHAR;"))
+        print("Added 'raw_text'")
     except Exception as e:
-        pass
+        print(f"Skipped raw_text: {e}")
 
-print("Migration completed.")
+    try:
+        conn.execute(text("ALTER TABLE medical_records ADD COLUMN notes VARCHAR;"))
+        print("Added 'notes'")
+    except Exception as e:
+        print(f"Skipped notes: {e}")
+
+    conn.commit()
+    print("Migration completed.")
+

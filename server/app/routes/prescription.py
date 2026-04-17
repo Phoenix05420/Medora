@@ -6,20 +6,35 @@ from ..utils.ocr_service import ocr_service
 import shutil
 import os
 import re
+import logging
 from typing import List
+
+logger = logging.getLogger("ocr_service")
 
 from ..utils.auth import get_current_user
 from datetime import datetime
 
 router = APIRouter(prefix="/prescriptions", tags=["prescriptions"])
 
-@router.get("/", response_model=List[dict])
+@router.get("/")
 async def get_records(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     """Fetch all medical records for the current user."""
     records = db.query(models.MedicalRecord).filter(
         models.MedicalRecord.user_id == current_user.id
     ).order_by(models.MedicalRecord.created_at.desc()).all()
-    return records
+    return [
+        {
+            "id": r.id,
+            "doctor_name": r.doctor_name,
+            "visit_date": str(r.visit_date) if r.visit_date else None,
+            "medicines": r.medicines or [],
+            "diagnoses": r.diagnoses or [],
+            "raw_text": r.raw_text or "",
+            "notes": r.notes or "",
+            "created_at": str(r.created_at) if r.created_at else None,
+        }
+        for r in records
+    ]
 
 @router.post("/upload")
 async def upload_prescription(
