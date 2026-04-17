@@ -1,6 +1,7 @@
 import React from 'react';
+import { UserButton, SignedIn, SignedOut } from '@clerk/clerk-react';
 
-const Navbar = ({ user, setUser, onEmergency }) => {
+const Navbar = ({ onEmergency }) => {
   return (
     <nav className="navbar navbar-expand-lg glass-card sticky-top mx-3 mt-2 py-3 px-4">
       <div className="container-fluid">
@@ -17,19 +18,14 @@ const Navbar = ({ user, setUser, onEmergency }) => {
             Emergency Access
           </button>
           
-          {user ? (
+          <SignedIn>
             <div className="d-flex align-items-center gap-3">
-              <span className="text-secondary small">Hi, {user.name}</span>
-              <button 
-                onClick={() => setUser(null)}
-                className="btn btn-link btn-sm text-decoration-none text-muted p-0"
-              >
-                Sign Out
-              </button>
+              <UserButton afterSignOutUrl="/" />
             </div>
-          ) : (
+          </SignedIn>
+          <SignedOut>
             <span className="text-muted small">Secure Vault</span>
-          )}
+          </SignedOut>
         </div>
       </div>
     </nav>

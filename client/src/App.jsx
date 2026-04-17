@@ -1,43 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Navbar from './components/Navbar';
 import Dashboard from './components/Dashboard';
-import Login from './components/Login';
+import { SignedIn, SignedOut, SignIn } from '@clerk/clerk-react';
 
 function App() {
-  const [user, setUser] = useState(null);
   const [showEmergency, setShowEmergency] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check for existing token on load
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
-    setLoading(false);
-  }, []);
-
-  const handleLogin = (userData) => {
-    setUser(userData);
-    localStorage.setItem('user', JSON.stringify(userData));
-    localStorage.setItem('token', userData.access_token);
-  };
-
-  const handleLogout = () => {
-    setUser(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-  };
-
-  if (loading) {
-    return (
-      <div className="vh-100 d-flex align-items-center justify-content-center">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
-        </div>
-      </div>
-    );
-  }
 
   if (showEmergency) {
     return (
@@ -77,14 +45,18 @@ function App() {
 
   return (
     <div className="min-vh-100 bg-light d-flex flex-column">
-      <Navbar user={user} setUser={handleLogout} onEmergency={() => setShowEmergency(true)} />
+      <Navbar onEmergency={() => setShowEmergency(true)} />
       
       <main className="flex-grow-1">
-        {!user ? (
-          <Login onLogin={handleLogin} />
-        ) : (
-          <Dashboard user={user} />
-        )}
+        <SignedOut>
+          <div className="container mt-5 py-5 d-flex justify-content-center">
+             <SignIn routing="hash" />
+          </div>
+        </SignedOut>
+        
+        <SignedIn>
+          <Dashboard />
+        </SignedIn>
       </main>
 
       <footer className="py-5 bg-white border-top mt-auto">

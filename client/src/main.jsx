@@ -4,15 +4,19 @@ import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import './index.css'
 import App from './App.jsx'
-import { GoogleOAuthProvider } from '@react-oauth/google'
+import { ClerkProvider } from '@clerk/clerk-react'
 
-// In a real app, this should come from env
-const GOOGLE_CLIENT_ID = "800687502632-b4196aajjhimcdkglev9346q0fbplj40.apps.googleusercontent.com"
+// Import your publishable key
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+
+if (!PUBLISHABLE_KEY) {
+  throw new Error("Missing Publishable Key")
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
       <App />
-    </GoogleOAuthProvider>
+    </ClerkProvider>
   </StrictMode>,
 )
