@@ -33,6 +33,7 @@ class MedicalRecord(Base):
     diagnoses = Column(JSON)  # List of condition strings
     raw_text = Column(String)
     notes = Column(String)
+    status = Column(String, default="completed") # pending, completed, failed
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="records")

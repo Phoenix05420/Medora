@@ -47,8 +47,19 @@ const Dashboard = ({ user }) => {
     getUserLocation();
   }, []);
 
-  const fetchData = async () => {
-    setLoading(true);
+  useEffect(() => {
+    let interval;
+    const hasPending = records.some(r => r.status === 'pending');
+    if (hasPending) {
+      interval = setInterval(() => {
+        fetchData(false); // pass false to avoid triggering global loading
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [records]);
+
+  const fetchData = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const authHeader = { Authorization: `Bearer ${user.access_token}` };
       const [recordsRes, summaryRes] = await Promise.all([
@@ -94,6 +105,19 @@ const Dashboard = ({ user }) => {
       setError("Extraction failed. Please try again.");
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleViewPdf = async (recordId) => {
+    try {
+      const response = await axios.get(`${API_BASE}/prescriptions/report/${recordId}`, {
+        headers: { Authorization: `Bearer ${user.access_token}` },
+        responseType: 'blob'
+      });
+      const fileUrl = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      window.open(fileUrl, '_blank');
+    } catch (err) {
+      setError("Could not load PDF report.");
     }
   };
 
@@ -248,34 +272,48 @@ const Dashboard = ({ user }) => {
                       <h4 className="h5 mb-1">{r.doctor_name}</h4>
                       <p className="text-secondary small mb-3">{formatDate(r.visit_date)}</p>
                       
-                      <div className="mb-3">
-                        <strong className="d-block text-secondary small mb-1">Diagnoses</strong>
-                        <div className="d-flex flex-wrap gap-2">
-                          {r.diagnoses?.map((d, i) => (
-                            <span key={i} className="badge bg-danger bg-opacity-10 text-danger border font-normal">{d}</span>
-                          )) || <span className="text-muted small">None detected</span>}
+                      {r.status === 'pending' ? (
+                        <div className="d-flex align-items-center gap-2 text-primary p-3 bg-primary bg-opacity-10 rounded">
+                          <div className="spinner-border spinner-border-sm" role="status"></div>
+                          <span className="font-semibold small">AI Extraction in Progress... Please wait.</span>
                         </div>
-                      </div>
+                      ) : r.status === 'failed' ? (
+                        <div className="text-danger p-3 bg-danger bg-opacity-10 rounded">
+                          <AlertTriangle size={16} className="me-2" />
+                          <span className="font-semibold small">Extraction Failed</span>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="mb-3">
+                            <strong className="d-block text-secondary small mb-1">Diagnoses</strong>
+                            <div className="d-flex flex-wrap gap-2">
+                              {r.diagnoses?.map((d, i) => (
+                                <span key={i} className="badge bg-danger bg-opacity-10 text-danger border font-normal">{d}</span>
+                              )) || <span className="text-muted small">None detected</span>}
+                            </div>
+                          </div>
 
-                      <div>
-                        <strong className="d-block text-secondary small mb-1">Medicines</strong>
-                        <div className="d-flex flex-wrap gap-2">
-                          {r.medicines?.map((m, i) => (
-                            <span key={i} className="badge bg-light text-navy border font-normal">{m.name || m}</span>
-                          )) || <span className="text-muted small">None detected</span>}
-                        </div>
-                      </div>
+                          <div>
+                            <strong className="d-block text-secondary small mb-1">Medicines</strong>
+                            <div className="d-flex flex-wrap gap-2">
+                              {r.medicines?.map((m, i) => (
+                                <span key={i} className="badge bg-light text-navy border font-normal">{m.name || m}</span>
+                              )) || <span className="text-muted small">None detected</span>}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="text-end">
-                      <a 
-                        href={`${API_BASE}/prescriptions/report/${r.id}`} 
-                        target="_blank" 
-                        rel="noreferrer"
+                    {r.status === 'completed' && (
+                      <div className="text-end">
+                      <button 
+                        onClick={() => handleViewPdf(r.id)}
                         className="btn btn-outline-primary btn-sm d-flex align-items-center gap-2"
                       >
                         <FileText size={16} /> View PDF
-                      </a>
-                    </div>
+                      </button>
+                      </div>
+                    )}
                   </div>
                   {r.notes && (
                      <div className="mt-3 pt-3 border-top text-secondary small text-end">

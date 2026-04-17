@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from ..database import get_db
+from ..database import get_db, SessionLocal
 from ..models import models
 from ..utils.ocr_service import ocr_service
 import shutil
@@ -36,6 +36,7 @@ async def get_records(db: Session = Depends(get_db), current_user: models.User =
             "diagnoses": r.diagnoses or [],
             "raw_text": r.raw_text or "",
             "notes": r.notes or "",
+            "status": r.status or "completed",
             "created_at": str(r.created_at) if r.created_at else None,
         }
         for r in records
@@ -68,23 +69,12 @@ async def download_report(record_id: int, db: Session = Depends(get_db), current
     ocr_service.generate_pdf_report(ocr_data, pdf_path)
     return FileResponse(pdf_path, media_type="application/pdf", filename=f"prescription_report_{record_id}.pdf")
 
-@router.post("/upload")
-async def upload_prescription(
-    file: UploadFile = File(...), 
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
-):
-    """Process prescription image via triple-engine OCR, save to DB, and generate PDF report."""
-    filename = f"user_{current_user.id}_{datetime.now().timestamp()}_{file.filename}"
-    temp_path = os.path.join("temp", filename)
-    os.makedirs("temp", exist_ok=True)
-    
-    with open(temp_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
-    
+def process_prescription_background(file_path: str, record_id: int):
+    """Background task to process the OCR and update the database."""
+    db = SessionLocal()
     try:
         # Run triple-engine local OCR pipeline
-        ocr_result = ocr_service.process_file(temp_path)
+        ocr_result = ocr_service.process_file(file_path)
         
         # Parse visit date
         visit_date = None
@@ -99,36 +89,77 @@ async def upload_prescription(
             except Exception:
                 visit_date = None
 
-        # Save to database
+        # Fetch the pending record to update
+        record = db.query(models.MedicalRecord).filter(models.MedicalRecord.id == record_id).first()
+        if record:
+            record.doctor_name = ocr_result.get("doctor_name", "Unknown")
+            record.visit_date = visit_date
+            record.medicines = ocr_result.get("medicines", [])
+            record.diagnoses = ocr_result.get("diagnoses", [])
+            record.raw_text = ocr_result.get("raw_text", "")
+            record.notes = f"Engines: {', '.join(ocr_result.get('engines_used', []))} | Confidence: {ocr_result.get('confidence', 0)}%"
+            record.status = "completed"
+            
+            db.commit()
+            
+            # Generate PDF report
+            pdf_path = os.path.join(REPORTS_DIR, f"report_{record.id}.pdf")
+            ocr_service.generate_pdf_report(ocr_result, pdf_path)
+            
+    except Exception as e:
+        logger.error(f"Background OCR Failure: {str(e)}", exc_info=True)
+        record = db.query(models.MedicalRecord).filter(models.MedicalRecord.id == record_id).first()
+        if record:
+            record.status = "failed"
+            record.notes = f"Processing failed: {str(e)}"
+            db.commit()
+    finally:
+        db.close()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+@router.post("/upload")
+async def upload_prescription(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...), 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Start prescription processing asynchronously."""
+    filename = f"user_{current_user.id}_{datetime.now().timestamp()}_{file.filename}"
+    temp_path = os.path.join("temp", filename)
+    os.makedirs("temp", exist_ok=True)
+    
+    with open(temp_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    try:
+        # Create an initial pending record in the database
         new_record = models.MedicalRecord(
             user_id=current_user.id,
-            doctor_name=ocr_result.get("doctor_name", "Unknown"),
-            visit_date=visit_date,
-            medicines=ocr_result.get("medicines", []),
-            diagnoses=ocr_result.get("diagnoses", []),
-            raw_text=ocr_result.get("raw_text", ""),
-            notes=f"Engines: {', '.join(ocr_result.get('engines_used', []))} | Confidence: {ocr_result.get('confidence', 0)}%"
+            doctor_name="Processing AI Scan...",
+            status="pending",
+            medicines=[],
+            diagnoses=[],
+            raw_text="Extraction in progress..."
         )
         
         db.add(new_record)
         db.commit()
         db.refresh(new_record)
         
-        # Generate PDF report from the OCR JSON
-        pdf_path = os.path.join(REPORTS_DIR, f"report_{new_record.id}.pdf")
-        ocr_service.generate_pdf_report(ocr_result, pdf_path)
+        # Dispatch the actual processing to the background
+        background_tasks.add_task(process_prescription_background, temp_path, new_record.id)
         
         return {
-            "message": "Prescription processed and saved successfully",
+            "message": "Prescription received and is processing in background",
             "record_id": new_record.id,
-            "pdf_report": f"/prescriptions/report/{new_record.id}",
-            "data": ocr_result
+            "status": "pending"
         }
     except Exception as e:
         db.rollback()
-        logger.error(f"OCR Failure: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
-    finally:
+        logger.error(f"Upload Failure: {str(e)}", exc_info=True)
         if os.path.exists(temp_path):
             os.remove(temp_path)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 

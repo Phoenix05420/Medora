@@ -19,6 +19,7 @@ columns_to_add = [
     ("medical_records", "diagnoses", "JSONB"),
     ("medical_records", "raw_text", "TEXT"),
     ("medical_records", "notes", "TEXT"),
+    ("medical_records", "status", "VARCHAR DEFAULT 'completed'"),
     ("users", "role", "VARCHAR(50) DEFAULT 'patient'"),
 ]
 
