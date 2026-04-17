@@ -10,6 +10,8 @@ __pycache__/
 venv/
 env/
 .env/
+medical.db
+server/medical.db
 build/
 dist/
 *.egg-info/
