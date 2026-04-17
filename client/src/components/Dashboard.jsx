@@ -284,21 +284,38 @@ const Dashboard = ({ user }) => {
                 <MapPin size={18} className="text-primary"/> Medical Facility Near You
               </h5>
             </div>
-            <div className="rounded-4 overflow-hidden border" style={{ height: '220px', background: '#e5e7eb' }}>
-               <iframe 
-                width="100%" 
-                height="100%" 
-                frameBorder="0" 
-                style={{ border: 0 }}
-                src={`https://www.google.com/maps/embed/v1/search?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY || ''}&q=hospital+pharmacy&center=${location.lat},${location.lng}&zoom=14`}
-                allowFullScreen
-                title="Google Maps Location"
-              ></iframe>
-              {/* Overlay if no API key is provided for a better visual look */}
-              <div className="position-absolute top-50 start-50 translate-middle text-center w-75 p-3 bg-white bg-opacity-75 rounded-4 border shadow-sm">
-                <MapIcon size={24} className="text-primary mb-2 mx-auto d-block"/>
-                <div className="x-small font-bold text-navy">LOCATION DETECTED</div>
-                <div className="x-small text-secondary">{location.lat.toFixed(4)}, {location.lng.toFixed(4)}</div>
+            <div className="rounded-4 overflow-hidden border position-relative" style={{ height: '220px', background: '#f3f4f6' }}>
+              {(import.meta.env.VITE_GOOGLE_MAPS_API_KEY && import.meta.env.VITE_GOOGLE_MAPS_API_KEY !== 'your_google_maps_key_here') ? (
+                <iframe 
+                  width="100%" 
+                  height="100%" 
+                  frameBorder="0" 
+                  style={{ border: 0 }}
+                  src={`https://www.google.com/maps/embed/v1/search?key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY}&q=hospital+pharmacy&center=${location.lat},${location.lng}&zoom=14`}
+                  allowFullScreen
+                  title="Google Maps Location"
+                ></iframe>
+              ) : (
+                <div className="d-flex flex-column align-items-center justify-content-center h-100 text-center p-3">
+                  <div className="bg-primary bg-opacity-10 p-3 rounded-circle mb-3">
+                    <MapIcon size={32} className="text-primary"/>
+                  </div>
+                  <h6 className="font-bold text-navy mb-1">Interactive Map Offline</h6>
+                  <p className="x-small text-secondary mb-3">Enable "Maps Embed API" in Cloud Console to activate.</p>
+                  <a 
+                    href={`https://www.google.com/maps/search/hospitals+and+pharmacies/@${location.lat},${location.lng},14z`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="btn btn-sm btn-outline-primary rounded-pill px-4"
+                  >
+                    View Local Clinics
+                  </a>
+                </div>
+              )}
+              {/* Subtle Location Tag */}
+              <div className="position-absolute bottom-0 start-0 w-100 bg-white bg-opacity-90 px-3 py-2 border-top d-flex justify-content-between align-items-center">
+                <span className="x-small font-bold text-navy uppercase tracking-wider">Coordinates</span>
+                <span className="x-small text-secondary opacity-75">{location.lat.toFixed(4)}, {location.lng.toFixed(4)}</span>
               </div>
             </div>
             <p className="mt-3 x-small text-secondary text-center mb-0">Local clinic search powered by Google Maps</p>
