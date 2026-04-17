@@ -91,7 +91,7 @@ const Dashboard = ({ user }) => {
       await fetchData();
       setActiveTab('history');
     } catch (err) {
-      setError("Cloud sync failed. Check Google API quota.");
+      setError("Extraction failed. Please try again.");
     } finally {
       setUploading(false);
     }
@@ -170,7 +170,7 @@ const Dashboard = ({ user }) => {
                   <div className="glass-card p-4">
                     <h6 className="text-uppercase x-small tracking-widest text-secondary font-bold mb-3">Latest Diagnosis</h6>
                     <h3 className="h4 text-navy mb-2">{records[0]?.diagnoses?.[0] || 'Clean Profile'}</h3>
-                    <p className="text-secondary small mb-0">Detected via Gemini Cloud OCR</p>
+                    <p className="text-secondary small mb-0">Detected via Local Triple-Engine OCR</p>
                   </div>
                 </div>
               </div>
@@ -247,13 +247,41 @@ const Dashboard = ({ user }) => {
                     <div>
                       <h4 className="h5 mb-1">{r.doctor_name}</h4>
                       <p className="text-secondary small mb-3">{formatDate(r.visit_date)}</p>
-                      <div className="d-flex gap-2">
-                        {r.medicines?.map((m, i) => (
-                          <span key={i} className="badge bg-light text-navy border font-normal">{m.name}</span>
-                        ))}
+                      
+                      <div className="mb-3">
+                        <strong className="d-block text-secondary small mb-1">Diagnoses</strong>
+                        <div className="d-flex flex-wrap gap-2">
+                          {r.diagnoses?.map((d, i) => (
+                            <span key={i} className="badge bg-danger bg-opacity-10 text-danger border font-normal">{d}</span>
+                          )) || <span className="text-muted small">None detected</span>}
+                        </div>
+                      </div>
+
+                      <div>
+                        <strong className="d-block text-secondary small mb-1">Medicines</strong>
+                        <div className="d-flex flex-wrap gap-2">
+                          {r.medicines?.map((m, i) => (
+                            <span key={i} className="badge bg-light text-navy border font-normal">{m.name || m}</span>
+                          )) || <span className="text-muted small">None detected</span>}
+                        </div>
                       </div>
                     </div>
+                    <div className="text-end">
+                      <a 
+                        href={`${API_BASE}/prescriptions/report/${r.id}`} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="btn btn-outline-primary btn-sm d-flex align-items-center gap-2"
+                      >
+                        <FileText size={16} /> View PDF
+                      </a>
+                    </div>
                   </div>
+                  {r.notes && (
+                     <div className="mt-3 pt-3 border-top text-secondary small text-end">
+                        {r.notes}
+                     </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -267,9 +295,9 @@ const Dashboard = ({ user }) => {
                 <Upload size={32} />
               </div>
               <h3 className="h3 font-outfit mb-3">Precision Medical Scanner</h3>
-              <p className="text-secondary mb-5">Gemini 2.0 Cloud Extraction Powered.</p>
+              <p className="text-secondary mb-5">Local Triple-Engine OCR (PaddleOCR + EasyOCR + Tesseract)</p>
               <button disabled={uploading} onClick={() => fileInputRef.current.click()} className="btn btn-premium px-5 py-3">
-                {uploading ? 'Analyzing Matrix...' : 'Upload Prescription'}
+                {uploading ? 'Analyzing via 3 AI Engines...' : 'Upload Prescription'}
               </button>
             </div>
           )}

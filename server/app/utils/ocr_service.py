@@ -234,7 +234,7 @@ class OcrService:
                 logger.info("Loading PaddleOCR...")
                 self.paddle = PaddleOCR(use_textline_orientation=False, enable_mkldnn=False, lang='en')
 
-            res = self.paddle.ocr(image_path, cls=True)
+            res = self.paddle.ocr(image_path)
             if res and len(res) > 0 and res[0]:
                 lines = []
                 for line in res[0]:

@@ -14,26 +14,70 @@ if not DATABASE_URL:
 
 engine = create_engine(DATABASE_URL)
 
-with engine.connect() as conn:
-    print("Adding missing columns to medical_records...")
+# Each ALTER TABLE must be its own transaction so one failure doesn't roll back others
+columns_to_add = [
+    ("medical_records", "diagnoses", "JSONB"),
+    ("medical_records", "raw_text", "TEXT"),
+    ("medical_records", "notes", "TEXT"),
+    ("users", "role", "VARCHAR(50) DEFAULT 'patient'"),
+]
+
+for table, column, col_type in columns_to_add:
     try:
-        conn.execute(text("ALTER TABLE medical_records ADD COLUMN diagnoses JSON;"))
-        print("Added 'diagnoses'")
+        with engine.connect() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type};"))
+            conn.commit()
+            print(f"  Added '{column}' to '{table}'")
     except Exception as e:
-        print(f"Skipped diagnoses: {e}")
+        if "already exists" in str(e) or "DuplicateColumn" in str(e):
+            print(f"  Skipped '{column}' on '{table}' (already exists)")
+        else:
+            print(f"  Error adding '{column}' to '{table}': {e}")
 
+# Also create new tables if they don't exist
+table_sqls = [
+    """
+    CREATE TABLE IF NOT EXISTS hospital_profiles (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id),
+        specializations JSONB,
+        lat VARCHAR,
+        lng VARCHAR,
+        address VARCHAR
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS emergency_alerts (
+        id SERIAL PRIMARY KEY,
+        patient_id INTEGER REFERENCES users(id),
+        hospital_id INTEGER REFERENCES users(id),
+        category VARCHAR,
+        lat VARCHAR,
+        lng VARCHAR,
+        status VARCHAR DEFAULT 'pending',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS appointments (
+        id SERIAL PRIMARY KEY,
+        patient_id INTEGER REFERENCES users(id),
+        hospital_id INTEGER REFERENCES users(id),
+        appointment_date TIMESTAMPTZ,
+        status VARCHAR DEFAULT 'scheduled',
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+    """,
+]
+
+for sql in table_sqls:
     try:
-        conn.execute(text("ALTER TABLE medical_records ADD COLUMN raw_text VARCHAR;"))
-        print("Added 'raw_text'")
+        with engine.connect() as conn:
+            conn.execute(text(sql))
+            conn.commit()
+            print(f"  Table ensured OK")
     except Exception as e:
-        print(f"Skipped raw_text: {e}")
+        print(f"  Table error: {e}")
 
-    try:
-        conn.execute(text("ALTER TABLE medical_records ADD COLUMN notes VARCHAR;"))
-        print("Added 'notes'")
-    except Exception as e:
-        print(f"Skipped notes: {e}")
-
-    conn.commit()
-    print("Migration completed.")
-
+print("\nMigration completed successfully!")
