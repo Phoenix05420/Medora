@@ -36,18 +36,27 @@ def generate_summary(db: Session = Depends(get_db), current_user: models.User = 
             "medicines": r.medicines
         })
     
-    # 2. Use Gemini for natural language summary across all history
+    # 2. Run R Analytics for statistical insights (Numerical data processing)
+    try:
+        r_insights = r_bridge.run_health_analysis(json.dumps(records_context))
+    except Exception as e:
+        logger.error(f"R Analytics failed: {e}")
+        r_insights = {"error": "Statistical engine offline"}
+
+    # 3. Use Gemini for natural language summary across all history
     prompt = f"""
     You are a medical health assistant. Summarize the following medical history for the patient {current_user.name}.
     Focus on trends, recurring medications, and provide a friendly, encouraging health overview.
     Medical History:
     {json.dumps(records_context)}
     
+    Statistical Insights (from R):
+    {json.dumps(r_insights)}
+
     Keep the summary concise but informative. Format with bullet points if needed.
     """
     
     try:
-        # Use a model from the client in ocr_service if we can, or just use genai directly if configured
         if ocr_service.gemini_client:
             response = ocr_service.gemini_client.models.generate_content(
                 model='gemini-2.0-flash',
@@ -55,12 +64,12 @@ def generate_summary(db: Session = Depends(get_db), current_user: models.User = 
             )
             ai_summary = response.text.strip()
         else:
-            ai_summary = "AI Summary Service is currently offline (Gemini not configured). However, your records are safely stored."
-            
+            ai_summary = "AI Summary Service is currently offline (Gemini not configured)."
     except Exception as e:
         ai_summary = f"Summary generation paused: {str(e)}"
 
     return {
         "ai_summary": ai_summary,
+        "statistical_insights": r_insights,
         "record_count": len(records)
     }

@@ -1,0 +1,22 @@
+{
+  "medicines": [
+    "Paracetamol", "Aspirin", "Ibuprofen", "Metformin", "Amoxicillin", "Lisinopril", 
+    "Atorvastatin", "Amlodipine", "Omeprazole", "Simvastatin", "Losartan", "Albuterol", 
+    "Gabapentin", "Hydrochlorothiazide", "Sertraline", "Levothyroxine", "Metoprolol", 
+    "Furosemide", "Pantoprazole", "Acetaminophen", "Ciprofloxacin", "Azithromycin", 
+    "Clopidogrel", "Warfarin", "Rosuvastatin", "Montelukast", "Escitalopram", 
+    "Prednisone", "Duloxetine", "Tamsulosin", "Venlafaxine", "Diclofenac", "Zolpidem", 
+    "Ranitidine", "Spironolactone", "Cetirizine", "Lorazepam", "Clonazepam", 
+    "Diazepam", "Tramadol", "Carvedilol", "Potassium Chloride", "Meloxicam", 
+    "Morphine", "Oxycodone", "Hydrocodone", "Fluoxetine", "Bupropion", "Citalopram", 
+    "Amitriptyline", "Doxycycline", "Cephalexin", "Sulfamethoxazole", "Trimethoprim", 
+    "Nitrofurantoin", "Fluconazole", "Acyclovir", "Valacyclovir", "Metronidazole", 
+    "Trazodone", "Quetiapine", "Risperidone", "Aripiprazole", "Olanzapine", 
+    "Lamotrigine", "Topiramate", "Valproate", "Phenytoin", "Levetiracetam", 
+    "Baclofen", "Cyclobenzaprine", "Sumatriptan", "Sildenafil", "Tadalafil", 
+    "Allopurinol", "Finasteride", "Latanoprost", "Timolol", "Fluticasone", 
+    "Budesonide", "Salmeterol", "Tiotropium", "Ipratropium", "Varenicline", 
+    "Nicotine", "Insulin Glargine", "Glipizide", "Glyburide", "Sitagliptin", 
+    "Pioglitazone", "Sitagliptin", "Liraglutide", "Empagliflozin", "Dapagliflozin"
+  ]
+}

@@ -10,6 +10,7 @@ import numpy as np
 import logging
 import re
 import time
+import json
 from difflib import get_close_matches
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, wait_fixed
@@ -109,11 +110,16 @@ class OcrService:
                 logger.info(f"✅ Gemini Cloud OCR initialized (Primary Model: {self.gemini_models[0]})")
             except Exception as e:
                 logger.error(f"Gemini init failed: {e}")
-        else:
-            if _gemini_available:
-                logger.warning("Gemini API key missing or placeholder in .env — Cloud OCR disabled")
-            else:
-                logger.warning("google-genai not installed — Cloud OCR disabled")
+        # ── Medicine Database (for fuzzy matching) ──
+        self.medicine_list = []
+        try:
+            db_path = Path(__file__).parent / "medicine_db.json"
+            if db_path.exists():
+                with open(db_path, "r") as f:
+                    self.medicine_list = json.load(f).get("medicines", [])
+                logger.info(f"📚 Medicine Database loaded ({len(self.medicine_list)} records)")
+        except Exception as e:
+            logger.error(f"Failed to load medicine database: {e}")
 
     # ═══════════════════════════════════════════════════════════════════════════
     #  IMAGE PREPROCESSING PIPELINE
@@ -394,8 +400,22 @@ class OcrService:
             if text_response.startswith("```"):
                 text_response = re.sub(r"```json\s?|\s?```", "", text_response)
             
-            import json
             result = json.loads(text_response)
+            
+            # Post-process with Fuzzy Matching for extra reliability
+            if "medicines" in result and self.medicine_list:
+                for med in result["medicines"]:
+                    original_name = med.get("name", "")
+                    # Look for close matches (threshold 0.8)
+                    matches = get_close_matches(original_name, self.medicine_list, n=1, cutoff=0.8)
+                    if matches and matches[0].lower() != original_name.lower():
+                        logger.info(f"✨ Auto-corrected: {original_name} -> {matches[0]}")
+                        med["name"] = matches[0]
+                        med["original_ocr"] = original_name
+                        med["validated"] = True
+                    elif matches:
+                        med["validated"] = True
+            
             logger.info(f"✅ Gemini Cloud OCR ({model_name}) successful")
             return result
         except Exception as e:
